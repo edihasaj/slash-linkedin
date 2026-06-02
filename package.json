@@ -1,0 +1,50 @@
+{
+  "name": "slash-linkedin",
+  "version": "0.1.0",
+  "description": "Local LinkedIn CLI for posting from the command line",
+  "license": "MIT",
+  "author": "Edi Hasaj <edihasaj@gmail.com> (https://github.com/edihasaj)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "slash-linkedin": "dist/cli.js",
+    "sli": "dist/cli.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/edihasaj/slash-linkedin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/edihasaj/slash-linkedin/issues"
+  },
+  "homepage": "https://github.com/edihasaj/slash-linkedin#readme",
+  "files": [
+    "dist",
+    "vendor/sweet-cookie",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node dist/cli.js",
+    "slash-linkedin": "node dist/cli.js",
+    "check": "node dist/cli.js --help",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "json5": "^2.2.3",
+    "kleur": "^4.1.5",
+    "sweet-cookie-local": "file:vendor/sweet-cookie"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
