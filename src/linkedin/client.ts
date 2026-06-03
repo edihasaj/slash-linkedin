@@ -1,10 +1,13 @@
+import { extractContentUrn } from '../lib/extract-urn.js';
 import { LinkedInClientBase } from './base.js';
+import { RESHARE_QUERY_ID, RESHARE_WITH_THOUGHTS_QUERY_ID } from './constants.js';
 import type {
 	CommentsScope,
 	CurrentUser,
 	CurrentUserResult,
 	MediaAttachment,
 	PostResult,
+	ReshareOptions,
 	UploadMediaResult,
 	Visibility,
 } from './types.js';
@@ -15,14 +18,28 @@ const COMMENTS_SCOPE_MAP: Record<CommentsScope, string> = {
 	none: 'NONE',
 };
 
+const VISIBILITY_TYPE_MAP: Record<Visibility, string> = {
+	anyone: 'ANYONE',
+	connections: 'CONNECTIONS_ONLY',
+};
+
 // Match the urn of the created update, most-specific first.
 const URN_REGEXES = [/urn:li:activity:\d+/, /urn:li:ugcPost:\d+/, /urn:li:share:\d+/];
+// The reshare API wants the content (share/ugcPost) urn, not the activity wrapper.
+const CONTENT_URN_REGEX = /urn:li:(?:share|ugcPost):\d+/;
 
 export interface CreatePostOptions {
 	visibility?: Visibility;
 	commentsScope?: CommentsScope;
 	/** Already-uploaded media URNs (see uploadImage). */
 	mediaUrns?: string[];
+}
+
+export interface ResolveUrnResult {
+	success: boolean;
+	/** The content (share/ugcPost) urn suitable for resharing. */
+	urn?: string;
+	error?: string;
 }
 
 export class LinkedInClient extends LinkedInClientBase {
@@ -68,6 +85,79 @@ export class LinkedInClient extends LinkedInClientBase {
 				return { success: false, error: this.describeError(res) };
 			}
 			const raw = this.parseJson(res.text);
+			return { success: true, urn: this.extractUrn(res.text), raw };
+		} catch (error) {
+			return { success: false, error: error instanceof Error ? error.message : String(error) };
+		}
+	}
+
+	/**
+	 * Resolve a post URL or URN into the content (share/ugcPost) urn the reshare API expects.
+	 * Share/ugcPost urns pass through untouched; an activity urn is resolved via a read-only
+	 * feed-update fetch (LinkedIn's `/feed/updates/{urn}` returns the underlying share urn).
+	 */
+	async resolveContentUrn(input: string): Promise<ResolveUrnResult> {
+		const extracted = extractContentUrn(input);
+		if (!extracted) {
+			return { success: false, error: `Could not find a LinkedIn post URN in "${input}". Pass a post URL or a urn:li:share/ugcPost/activity:… value.` };
+		}
+		if (extracted.type !== 'activity') {
+			return { success: true, urn: extracted.urn };
+		}
+		try {
+			const res = await this.request({ method: 'GET', path: `/feed/updates/${encodeURIComponent(extracted.urn)}` });
+			if (!res.ok) {
+				return { success: false, error: `Could not resolve ${extracted.urn}: ${this.describeError(res)}` };
+			}
+			const match = CONTENT_URN_REGEX.exec(res.text);
+			if (!match) {
+				return { success: false, error: `Resolved ${extracted.urn} but found no share/ugcPost urn in the response.` };
+			}
+			return { success: true, urn: match[0] };
+		} catch (error) {
+			return { success: false, error: error instanceof Error ? error.message : String(error) };
+		}
+	}
+
+	/**
+	 * Reshare (repost) an existing post. With `options.text` it posts a "repost with your
+	 * thoughts" (commentary + RESHARE origin); without it, an instant repost. `target` may be
+	 * a post URL or any share/ugcPost/activity urn — activity urns are resolved automatically.
+	 */
+	async reshare(target: string, options: ReshareOptions = {}): Promise<PostResult> {
+		const resolved = await this.resolveContentUrn(target);
+		if (!resolved.success || !resolved.urn) {
+			return { success: false, error: resolved.error ?? 'Could not resolve the post to reshare' };
+		}
+		const contentUrn = resolved.urn;
+		const text = options.text?.trim();
+		const queryId = text ? RESHARE_WITH_THOUGHTS_QUERY_ID : RESHARE_QUERY_ID;
+		const variables = text
+			? {
+					post: {
+						allowedCommentersScope: COMMENTS_SCOPE_MAP[options.commentsScope ?? 'all'],
+						intendedShareLifeCycleState: 'PUBLISHED',
+						origin: 'RESHARE',
+						visibilityDataUnion: { visibilityType: VISIBILITY_TYPE_MAP[options.visibility ?? 'anyone'] },
+						commentary: { text, attributesV2: [] },
+						parentUrn: contentUrn,
+					},
+				}
+			: { entity: { rootContentUrn: contentUrn } };
+		try {
+			const res = await this.request({
+				method: 'POST',
+				path: '/graphql',
+				query: { action: 'execute', queryId },
+				body: { variables, queryId, includeWebMetadata: true },
+			});
+			if (!res.ok) {
+				return { success: false, error: this.describeError(res) };
+			}
+			const raw = this.parseJson(res.text);
+			if (raw && typeof raw === 'object' && Array.isArray((raw as { errors?: unknown[] }).errors) && (raw as { errors: unknown[] }).errors.length > 0) {
+				return { success: false, error: `LinkedIn rejected the reshare (GraphQL errors). The query ID may be stale — re-capture it. Raw: ${res.text.slice(0, 200)}`, raw };
+			}
 			return { success: true, urn: this.extractUrn(res.text), raw };
 		} catch (error) {
 			return { success: false, error: error instanceof Error ? error.message : String(error) };
