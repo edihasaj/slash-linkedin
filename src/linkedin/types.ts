@@ -18,6 +18,13 @@ export interface PostResult {
 	raw?: unknown;
 }
 
+export interface ReshareOptions {
+	/** Optional commentary. When present (non-empty), posts a "repost with your thoughts"; otherwise an instant repost. */
+	text?: string;
+	visibility?: Visibility;
+	commentsScope?: CommentsScope;
+}
+
 export interface CurrentUser {
 	id: string;
 	publicIdentifier?: string;

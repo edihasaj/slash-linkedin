@@ -83,11 +83,33 @@ slash-linkedin post "hi" --json
 
 Posts are capped at 3000 characters (LinkedIn's limit).
 
+## Repost
+
+```bash
+# Instant repost (alias: reshare) — accepts a post URL or any share/ugcPost/activity urn
+slash-linkedin repost "https://www.linkedin.com/posts/<slug>-activity-1234567890-abcd"
+
+# Repost with your thoughts — add commentary
+slash-linkedin repost "https://www.linkedin.com/feed/update/urn:li:activity:1234567890/" "My take on this."
+
+# Preview the resolved target + request without sending
+slash-linkedin repost <post-url> --dry-run
+```
+
+Activity URLs (the kind you get from "Copy link to post") are resolved to the underlying
+share/ugcPost urn automatically via a read-only lookup. Commentary respects `--visibility`
+and `--comments-scope`, same as `post`.
+
+> Note: reshares go through LinkedIn's `voyager` GraphQL endpoints, whose query IDs rotate
+> with the web client. If a repost starts failing with a 400/GraphQL error, the IDs in
+> `src/linkedin/constants.ts` need re-capturing.
+
 ## Commands
 
 | Command | Description |
 | --- | --- |
 | `post [text]` | Publish a post to your feed |
+| `repost <post> [text]` | Repost a post (alias: `reshare`); add text for a quote repost |
 | `whoami` | Show the logged-in LinkedIn account |
 | `check` | Check credential availability |
 
