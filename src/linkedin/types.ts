@@ -25,6 +25,17 @@ export interface ReshareOptions {
 	commentsScope?: CommentsScope;
 }
 
+export interface CommentResult {
+	success: boolean;
+	/** urn of the created comment, when parseable. */
+	urn?: string;
+	/** the post/activity urn the comment was attached to. */
+	postUrn?: string;
+	error?: string;
+	/** Raw API response, surfaced for --json-full. */
+	raw?: unknown;
+}
+
 export interface CurrentUser {
 	id: string;
 	publicIdentifier?: string;

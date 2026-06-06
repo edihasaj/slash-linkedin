@@ -104,12 +104,26 @@ and `--comments-scope`, same as `post`.
 > with the web client. If a repost starts failing with a 400/GraphQL error, the IDs in
 > `src/linkedin/constants.ts` need re-capturing.
 
+## Comment
+
+```bash
+# comment on an existing post (URL or urn:li:activity:<id>)
+slash-linkedin comment "https://www.linkedin.com/feed/update/urn:li:activity:7338…/" "Great point!"
+
+# from a file, machine-readable
+slash-linkedin comment urn:li:activity:7338… --file reply.md --json
+```
+
+Accepts a full post URL (`/feed/update/…` or `/posts/…-activity-<id>-…`), a bare
+`urn:li:activity:<id>`, or just the numeric id.
+
 ## Commands
 
 | Command | Description |
 | --- | --- |
 | `post [text]` | Publish a post to your feed |
 | `repost <post> [text]` | Repost a post (alias: `reshare`); add text for a quote repost |
+| `comment <post> [text]` | Comment on an existing post (URL or activity urn) |
 | `whoami` | Show the logged-in LinkedIn account |
 | `check` | Check credential availability |
 

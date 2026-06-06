@@ -2,6 +2,7 @@ import { extractContentUrn } from '../lib/extract-urn.js';
 import { LinkedInClientBase } from './base.js';
 import { RESHARE_QUERY_ID, RESHARE_WITH_THOUGHTS_QUERY_ID } from './constants.js';
 import type {
+	CommentResult,
 	CommentsScope,
 	CurrentUser,
 	CurrentUserResult,
@@ -27,6 +28,25 @@ const VISIBILITY_TYPE_MAP: Record<Visibility, string> = {
 const URN_REGEXES = [/urn:li:activity:\d+/, /urn:li:ugcPost:\d+/, /urn:li:share:\d+/];
 // The reshare API wants the content (share/ugcPost) urn, not the activity wrapper.
 const CONTENT_URN_REGEX = /urn:li:(?:share|ugcPost):\d+/;
+const COMMENT_URN_REGEXES = [/urn:li:fsd_comment:\([^)]*\)/, /urn:li:comment:\([^)]*\)/];
+
+/** Resolve a post URL or raw urn into a thread urn that socialActions accepts. */
+export function resolveActivityUrn(target: string): string {
+	const t = target.trim();
+	const direct = /urn:li:(?:activity|ugcPost|share):\d+/.exec(t);
+	if (direct) {
+		return direct[0];
+	}
+	// /posts/<slug>-activity-7338...-abcd  or  ...activity:7338...
+	const fromPosts = /activity[:-](\d{6,})/i.exec(t);
+	if (fromPosts) {
+		return `urn:li:activity:${fromPosts[1]}`;
+	}
+	if (/^\d{6,}$/.test(t)) {
+		return `urn:li:activity:${t}`;
+	}
+	throw new Error(`Could not find an activity urn in "${target}". Pass a post URL or urn:li:activity:<id>.`);
+}
 
 export interface CreatePostOptions {
 	visibility?: Visibility;
@@ -161,6 +181,41 @@ export class LinkedInClient extends LinkedInClientBase {
 			return { success: true, urn: this.extractUrn(res.text), raw };
 		} catch (error) {
 			return { success: false, error: error instanceof Error ? error.message : String(error) };
+		}
+	}
+
+	private extractCommentUrn(text: string): string | undefined {
+		for (const regex of COMMENT_URN_REGEXES) {
+			const match = regex.exec(text);
+			if (match) {
+				return match[0];
+			}
+		}
+		return undefined;
+	}
+
+	/** Comment on an existing post. `target` may be a post URL or an activity urn. */
+	async createComment(target: string, text: string): Promise<CommentResult> {
+		let postUrn: string;
+		try {
+			postUrn = resolveActivityUrn(target);
+		} catch (error) {
+			return { success: false, error: error instanceof Error ? error.message : String(error) };
+		}
+		const payload = { message: { text, attributes: [] } };
+		try {
+			const res = await this.request({
+				method: 'POST',
+				path: `/socialActions/${encodeURIComponent(postUrn)}/comments`,
+				body: payload,
+			});
+			if (!res.ok) {
+				return { success: false, postUrn, error: this.describeError(res) };
+			}
+			const raw = this.parseJson(res.text);
+			return { success: true, postUrn, urn: this.extractCommentUrn(res.text), raw };
+		} catch (error) {
+			return { success: false, postUrn, error: error instanceof Error ? error.message : String(error) };
 		}
 	}
 
