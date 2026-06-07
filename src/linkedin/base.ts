@@ -61,13 +61,19 @@ export abstract class LinkedInClientBase {
 	}
 
 	private async fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+		// `redirect: 'manual'` is deliberate. Voyager returns 200 on success; any
+		// 3xx is a session/bot challenge (LinkedIn 302s `/voyager/api/me` back to
+		// itself, re-issuing li_at). With the default `follow`, fetch loops until
+		// "redirect count exceeded" and surfaces as an opaque `fetch failed`. Manual
+		// lets us catch the 3xx and report something actionable (see describeError).
+		const withManualRedirect: RequestInit = { ...init, redirect: 'manual' };
 		if (!this.timeoutMs || this.timeoutMs <= 0) {
-			return fetch(url, init);
+			return fetch(url, withManualRedirect);
 		}
 		const controller = new AbortController();
 		const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 		try {
-			return await fetch(url, { ...init, signal: controller.signal });
+			return await fetch(url, { ...withManualRedirect, signal: controller.signal });
 		} finally {
 			clearTimeout(timeoutId);
 		}
@@ -107,6 +113,18 @@ export abstract class LinkedInClientBase {
 
 	/** Translate a non-OK response into a human-readable error string. */
 	protected describeError(res: RawResponse): string {
+		// 3xx reaches here because we fetch with redirect:'manual'. Voyager only
+		// redirects when the session isn't accepted (expired cookies) or the
+		// request is being bot-challenged (Cloudflare __cf_bm). Either way, retrying
+		// blindly loops — tell the user how to actually recover.
+		if (res.status >= 300 && res.status < 400) {
+			return (
+				`LinkedIn redirected the request (HTTP ${res.status}) instead of returning data. ` +
+				`This means the session was not accepted — usually expired cookies or an automated-traffic ` +
+				`challenge. Re-login to linkedin.com in your browser to refresh li_at/JSESSIONID, then retry; ` +
+				`if it persists, wait a few minutes (rate/bot challenge) before retrying.`
+			);
+		}
 		if (res.contentType.includes('text/html')) {
 			return `HTTP ${res.status}: LinkedIn returned an HTML page (session expired or a security challenge — re-login in your browser).`;
 		}
