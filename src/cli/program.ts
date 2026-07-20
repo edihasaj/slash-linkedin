@@ -3,11 +3,12 @@ import { registerCheckCommand } from '../commands/check.js';
 import { registerCommentCommand } from '../commands/comment.js';
 import { registerPostCommand } from '../commands/post.js';
 import { registerRepostCommand } from '../commands/repost.js';
+import { registerSearchCommand } from '../commands/search.js';
 import { registerWhoamiCommand } from '../commands/whoami.js';
 import { getCliVersion } from '../lib/version.js';
 import { type CliContext, collectCookieSource } from './shared.js';
 
-export const KNOWN_COMMANDS: Set<string> = new Set(['post', 'repost', 'reshare', 'comment', 'whoami', 'check', 'help']);
+export const KNOWN_COMMANDS: Set<string> = new Set(['post', 'repost', 'reshare', 'comment', 'search', 'whoami', 'check', 'help']);
 
 export function createProgram(ctx: CliContext): Command {
 	const program = new Command();
@@ -57,6 +58,7 @@ export function createProgram(ctx: CliContext): Command {
 				formatExample('slash-linkedin repost <post-url>', 'Instantly repost a post (alias: reshare)'),
 				formatExample('slash-linkedin repost <post-url> "my take"', 'Repost with your thoughts'),
 				formatExample('slash-linkedin comment <post-url> "great post!"', 'Comment on an existing post'),
+				formatExample('slash-linkedin search "looking for crm" --json', 'Search LinkedIn posts'),
 				formatExample('slash-linkedin check', 'Verify credential availability'),
 			].join('\n\n')}\n\n${ctx.colors.section('Config')}\n${ctx.colors.muted(
 				`  Reads ${ctx.colors.argument('~/.config/slash-linkedin/config.json5')} and ${ctx.colors.argument('./.slashrc-linkedin.json5')} (JSON5)`,
@@ -87,6 +89,7 @@ export function createProgram(ctx: CliContext): Command {
 	registerPostCommand(program, ctx);
 	registerRepostCommand(program, ctx);
 	registerCommentCommand(program, ctx);
+	registerSearchCommand(program, ctx);
 	registerWhoamiCommand(program, ctx);
 	registerCheckCommand(program, ctx);
 

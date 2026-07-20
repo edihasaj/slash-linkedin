@@ -117,6 +117,15 @@ slash-linkedin comment urn:li:activity:7338… --file reply.md --json
 Accepts a full post URL (`/feed/update/…` or `/posts/…-activity-<id>-…`), a bare
 `urn:li:activity:<id>`, or just the numeric id.
 
+## Search
+
+```bash
+slash-linkedin search "looking for crm" --count 10 --json
+```
+
+Returns normalized post items (`urn`, `url`, `text`, author/date/stats when
+LinkedIn includes them), suitable for automation through slash-bridge.
+
 ## Commands
 
 | Command | Description |
@@ -124,6 +133,7 @@ Accepts a full post URL (`/feed/update/…` or `/posts/…-activity-<id>-…`), 
 | `post [text]` | Publish a post to your feed |
 | `repost <post> [text]` | Repost a post (alias: `reshare`); add text for a quote repost |
 | `comment <post> [text]` | Comment on an existing post (URL or activity urn) |
+| `search <query>` | Search LinkedIn posts |
 | `whoami` | Show the logged-in LinkedIn account |
 | `check` | Check credential availability |
 

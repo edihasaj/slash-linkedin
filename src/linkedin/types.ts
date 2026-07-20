@@ -51,6 +51,24 @@ export interface CurrentUserResult {
 	raw?: unknown;
 }
 
+export interface SearchItem {
+	id: string;
+	urn: string;
+	url: string;
+	text: string;
+	author?: string;
+	publishedAt?: string;
+	likeCount?: number;
+	commentCount?: number;
+}
+
+export interface SearchResult {
+	success: boolean;
+	items?: SearchItem[];
+	error?: string;
+	raw?: unknown;
+}
+
 export interface UploadMediaResult {
 	success: boolean;
 	mediaUrn?: string;
