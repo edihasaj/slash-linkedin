@@ -370,15 +370,32 @@ export class LinkedInClient extends LinkedInClientBase {
 
 	private searchItemAuthor(record: Record<string, unknown>): string | undefined {
 		for (const key of ['author', 'actor', 'name', 'publicIdentifier']) {
-			const value = record[key];
-			if (typeof value === 'string' && value.trim()) {
-				return value.trim();
+			const name = this.extractName(record[key]);
+			if (name) {
+				return name;
 			}
-			if (value && typeof value === 'object') {
-				const text = this.searchItemText(value as Record<string, unknown>);
-				if (text) {
-					return text.split('\n')[0];
-				}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Pull a display name out of an author-ish value. Unlike {@link searchItemText}
+	 * this keeps short strings (author names like "Ada Founder" are often < 12 chars),
+	 * and walks common LinkedIn shapes (`title.text`, `text`, `name`).
+	 */
+	private extractName(value: unknown): string | undefined {
+		if (typeof value === 'string') {
+			const trimmed = value.trim();
+			return trimmed || undefined;
+		}
+		if (!value || typeof value !== 'object') {
+			return undefined;
+		}
+		const record = value as Record<string, unknown>;
+		for (const key of ['title', 'text', 'name']) {
+			const name = this.extractName(record[key]);
+			if (name) {
+				return name;
 			}
 		}
 		return undefined;
