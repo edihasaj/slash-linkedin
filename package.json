@@ -1,6 +1,6 @@
 {
   "name": "slash-linkedin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local LinkedIn CLI for posting from the command line",
   "license": "MIT",
   "author": "Edi Hasaj <edihasaj@gmail.com> (https://github.com/edihasaj)",
