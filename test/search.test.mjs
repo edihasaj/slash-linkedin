@@ -41,6 +41,7 @@ test('searchPosts normalizes server-rendered LinkedIn search results', async () 
 				postUrl,
 				`commentCount-${activityUrn}`,
 				'Open control menu for post by Ada Founder',
+				'$Laa',
 				{ viewTrackingSpecs: { viewName: 'feed-commentary' }, children: '$Lff' },
 			],
 		},
@@ -58,7 +59,8 @@ test('searchPosts normalizes server-rendered LinkedIn search results', async () 
 			},
 		},
 	];
-	const response = new Response(searchPage({ 84: card, ff: commentary }), {
+	const actor = { profileUrl: 'https://www.linkedin.com/in/ada-founder/' };
+	const response = new Response(searchPage({ 84: card, aa: actor, ff: commentary }), {
 		status: 200,
 		headers: { 'content-type': 'text/html' },
 	});
@@ -70,6 +72,7 @@ test('searchPosts normalizes server-rendered LinkedIn search results', async () 
 	assert.equal(result.out.items.length, 1);
 	assert.equal(result.out.items[0].urn, activityUrn);
 	assert.equal(result.out.items[0].author, 'Ada Founder');
+	assert.equal(result.out.items[0].authorUrl, 'https://www.linkedin.com/in/ada-founder/');
 	assert.equal(result.out.items[0].url, postUrl);
 	assert.equal(result.out.items[0].text, 'Looking for a better CRM workflow for founder-led sales. #crm');
 	assert.equal(result.out.items[0].publishedAt, '2026-08-11T14:09:21.104Z');

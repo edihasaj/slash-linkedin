@@ -57,6 +57,7 @@ export interface SearchItem {
 	url: string;
 	text: string;
 	author?: string;
+	authorUrl?: string;
 	publishedAt?: string;
 	likeCount?: number;
 	commentCount?: number;

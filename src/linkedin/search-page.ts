@@ -5,6 +5,7 @@ const RECORD_ID_REGEX = /^[0-9a-f]+$/i;
 const RECORD_REFERENCE_REGEX = /^\$L?([0-9a-f]+)$/i;
 const ACTIVITY_URN_REGEX = /urn:li:activity:(\d{6,})/;
 const POST_URL_REGEX = /^https:\/\/www\.linkedin\.com\/posts\//;
+const AUTHOR_URL_REGEX = /^https:\/\/www\.linkedin\.com\/(?:in|company)\//;
 const POST_URL_ID_REGEX = /-(activity|ugcPost|share)-(\d{6,})(?:-|$)/i;
 const AUTHOR_LABEL = 'Open control menu for post by ';
 
@@ -65,8 +66,20 @@ function isFeedUpdate(value: unknown): boolean {
 	return serialized.includes('"role":"listitem"') && serialized.includes('"viewName":"feed-full-update"');
 }
 
-function collectMetadataStrings(value: unknown, out: string[], visited = new Set<object>()): void {
+function collectMetadataStrings(
+	value: unknown,
+	records: Map<string, FlightRecord>,
+	out: string[],
+	visited = new Set<object>(),
+	visitedReferences = new Set<string>(),
+): void {
 	if (typeof value === 'string') {
+		const reference = RECORD_REFERENCE_REGEX.exec(value)?.[1];
+		if (reference && records.has(reference) && !visitedReferences.has(reference)) {
+			visitedReferences.add(reference);
+			collectMetadataStrings(records.get(reference), records, out, visited, visitedReferences);
+			return;
+		}
 		out.push(value);
 		return;
 	}
@@ -75,7 +88,7 @@ function collectMetadataStrings(value: unknown, out: string[], visited = new Set
 	}
 	visited.add(value);
 	for (const child of Object.values(value)) {
-		collectMetadataStrings(child, out, visited);
+		collectMetadataStrings(child, records, out, visited, visitedReferences);
 	}
 }
 
@@ -171,8 +184,9 @@ function snowflakeDate(urn: string): string | undefined {
 
 function normalizeCard(card: FlightRecord, records: Map<string, FlightRecord>): SearchItem | undefined {
 	const metadata: string[] = [];
-	collectMetadataStrings(card, metadata);
+	collectMetadataStrings(card, records, metadata);
 	const url = metadata.find((value) => POST_URL_REGEX.test(value));
+	const authorUrl = metadata.find((value) => AUTHOR_URL_REGEX.test(value));
 	const urn = postUrn(metadata, url);
 	if (!urn) {
 		return undefined;
@@ -197,6 +211,7 @@ function normalizeCard(card: FlightRecord, records: Map<string, FlightRecord>): 
 		url: url ?? `https://www.linkedin.com/feed/update/${urn}/`,
 		text,
 		author,
+		authorUrl,
 		publishedAt: snowflakeDate(urn),
 	};
 }
