@@ -1,6 +1,7 @@
 import { extractContentUrn } from '../lib/extract-urn.js';
 import { LinkedInClientBase } from './base.js';
 import { RESHARE_QUERY_ID, RESHARE_WITH_THOUGHTS_QUERY_ID } from './constants.js';
+import { parseLinkedInSearchPage } from './search-page.js';
 import type {
 	CommentResult,
 	CommentsScope,
@@ -9,7 +10,6 @@ import type {
 	MediaAttachment,
 	PostResult,
 	ReshareOptions,
-	SearchItem,
 	SearchResult,
 	UploadMediaResult,
 	Visibility,
@@ -31,8 +31,6 @@ const URN_REGEXES = [/urn:li:activity:\d+/, /urn:li:ugcPost:\d+/, /urn:li:share:
 // The reshare API wants the content (share/ugcPost) urn, not the activity wrapper.
 const CONTENT_URN_REGEX = /urn:li:(?:share|ugcPost):\d+/;
 const COMMENT_URN_REGEXES = [/urn:li:fsd_comment:\([^)]*\)/, /urn:li:comment:\([^)]*\)/];
-const POST_URN_REGEX = /urn:li:(?:activity|ugcPost|share):\d+/;
-const ACTIVITY_URL_REGEX = /activity[:-](\d{6,})/i;
 
 /** Resolve a post URL or raw urn into a thread urn that socialActions accepts. */
 export function resolveActivityUrn(target: string): string {
@@ -123,19 +121,24 @@ export class LinkedInClient extends LinkedInClientBase {
 		try {
 			const res = await this.request({
 				method: 'GET',
-				path: '/search/blended',
+				path: '/search/results/content/',
+				baseRequest: true,
 				query: {
 					keywords,
 					origin: 'GLOBAL_SEARCH_HEADER',
-					q: 'all',
-					count: Math.max(1, Math.min(count, 50)),
+					sortBy: JSON.stringify('date_posted'),
 				},
+				headers: { accept: 'text/html,application/xhtml+xml' },
 			});
 			if (!res.ok) {
 				return { success: false, error: this.describeError(res) };
 			}
-			const raw = this.parseJson(res.text);
-			return { success: true, items: this.parseSearchItems(raw, count), raw };
+			const items = parseLinkedInSearchPage(res.text, Math.max(1, Math.min(count, 50)));
+			return {
+				success: true,
+				items,
+				raw: { source: 'linkedin-search-page', responseBytes: res.text.length },
+			};
 		} catch (error) {
 			return { success: false, error: error instanceof Error ? error.message : String(error) };
 		}
@@ -264,174 +267,6 @@ export class LinkedInClient extends LinkedInClientBase {
 		} catch (error) {
 			return { success: false, error: error instanceof Error ? error.message : String(error) };
 		}
-	}
-
-	private parseSearchItems(raw: unknown, limit: number): SearchItem[] {
-		const items: SearchItem[] = [];
-		const seen = new Set<string>();
-		const visit = (node: unknown): void => {
-			if (!node || items.length >= limit) {
-				return;
-			}
-			if (Array.isArray(node)) {
-				for (const value of node) {
-					visit(value);
-				}
-				return;
-			}
-			if (typeof node !== 'object') {
-				return;
-			}
-			const record = node as Record<string, unknown>;
-			const urn = this.searchItemUrn(record);
-			if (urn && !seen.has(urn)) {
-				const text = this.searchItemText(record);
-				if (text) {
-					seen.add(urn);
-					items.push({
-						id: urn,
-						urn,
-						url: `https://www.linkedin.com/feed/update/${urn}/`,
-						text,
-						author: this.searchItemAuthor(record),
-						publishedAt: this.searchItemPublishedAt(record),
-						likeCount: this.searchItemNumber(record, ['likeCount', 'numLikes', 'likes']),
-						commentCount: this.searchItemNumber(record, ['commentCount', 'numComments', 'comments']),
-					});
-				}
-			}
-			for (const value of Object.values(record)) {
-				visit(value);
-			}
-		};
-		visit(raw);
-		return items;
-	}
-
-	private searchItemUrn(record: Record<string, unknown>): string | undefined {
-		for (const value of Object.values(record)) {
-			if (typeof value !== 'string') {
-				continue;
-			}
-			const urn = POST_URN_REGEX.exec(value)?.[0];
-			if (urn) {
-				return urn;
-			}
-			const activity = ACTIVITY_URL_REGEX.exec(value)?.[1];
-			if (activity) {
-				return `urn:li:activity:${activity}`;
-			}
-		}
-		return undefined;
-	}
-
-	private searchItemText(record: Record<string, unknown>): string {
-		const keys = ['commentary', 'text', 'title', 'description', 'summary', 'snippet'];
-		const out: string[] = [];
-		for (const key of keys) {
-			this.collectText(record[key], out);
-		}
-		return [...new Set(out.map((s) => s.replace(/\s+/g, ' ').trim()).filter(Boolean))]
-			.filter((s) => !POST_URN_REGEX.test(s) && !/^https?:\/\//i.test(s))
-			.slice(0, 3)
-			.join('\n');
-	}
-
-	private collectText(value: unknown, out: string[]): void {
-		if (!value) {
-			return;
-		}
-		if (typeof value === 'string') {
-			if (value.trim().length >= 12) {
-				out.push(value);
-			}
-			return;
-		}
-		if (Array.isArray(value)) {
-			for (const item of value) {
-				this.collectText(item, out);
-			}
-			return;
-		}
-		if (typeof value !== 'object') {
-			return;
-		}
-		const record = value as Record<string, unknown>;
-		if (typeof record.text === 'string') {
-			this.collectText(record.text, out);
-		}
-		if (typeof record.value === 'string') {
-			this.collectText(record.value, out);
-		}
-		for (const key of ['commentary', 'title', 'description', 'summary', 'snippet']) {
-			this.collectText(record[key], out);
-		}
-	}
-
-	private searchItemAuthor(record: Record<string, unknown>): string | undefined {
-		for (const key of ['author', 'actor', 'name', 'publicIdentifier']) {
-			const name = this.extractName(record[key]);
-			if (name) {
-				return name;
-			}
-		}
-		return undefined;
-	}
-
-	/**
-	 * Pull a display name out of an author-ish value. Unlike {@link searchItemText}
-	 * this keeps short strings (author names like "Ada Founder" are often < 12 chars),
-	 * and walks common LinkedIn shapes (`title.text`, `text`, `name`).
-	 */
-	private extractName(value: unknown): string | undefined {
-		if (typeof value === 'string') {
-			const trimmed = value.trim();
-			return trimmed || undefined;
-		}
-		if (!value || typeof value !== 'object') {
-			return undefined;
-		}
-		const record = value as Record<string, unknown>;
-		for (const key of ['title', 'text', 'name']) {
-			const name = this.extractName(record[key]);
-			if (name) {
-				return name;
-			}
-		}
-		return undefined;
-	}
-
-	private searchItemPublishedAt(record: Record<string, unknown>): string | undefined {
-		for (const key of ['createdAt', 'publishedAt', 'postedAt', 'createdTime', 'time']) {
-			const value = record[key];
-			if (typeof value === 'string') {
-				const t = Date.parse(value);
-				if (!Number.isNaN(t)) {
-					return new Date(t).toISOString();
-				}
-			}
-			if (typeof value === 'number' && Number.isFinite(value)) {
-				const millis = value > 10_000_000_000 ? value : value * 1000;
-				return new Date(millis).toISOString();
-			}
-		}
-		return undefined;
-	}
-
-	private searchItemNumber(record: Record<string, unknown>, keys: string[]): number | undefined {
-		for (const key of keys) {
-			const value = record[key];
-			if (typeof value === 'number' && Number.isFinite(value)) {
-				return Math.max(0, value);
-			}
-			if (typeof value === 'string') {
-				const parsed = Number(value.replace(/,/g, ''));
-				if (Number.isFinite(parsed)) {
-					return Math.max(0, parsed);
-				}
-			}
-		}
-		return undefined;
 	}
 
 	private parseCurrentUser(raw: unknown): CurrentUser | undefined {
