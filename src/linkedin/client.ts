@@ -121,12 +121,11 @@ export class LinkedInClient extends LinkedInClientBase {
 		try {
 			const res = await this.request({
 				method: 'GET',
-				path: '/search/results/content/',
+				path: '/search/results/all/',
 				baseRequest: true,
 				query: {
 					keywords,
 					origin: 'GLOBAL_SEARCH_HEADER',
-					sortBy: JSON.stringify('date_posted'),
 				},
 				headers: { accept: 'text/html,application/xhtml+xml' },
 			});

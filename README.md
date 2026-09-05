@@ -125,9 +125,9 @@ slash-linkedin search "looking for crm" --count 10 --json
 
 Returns normalized post items (`urn`, `url`, `text`, author/profile/date/stats when
 LinkedIn includes them), suitable for automation through slash-bridge. Search
-uses LinkedIn's authenticated, server-rendered content results and sorts by
-newest posts because the former Voyager blended-search endpoint is no longer
-available.
+uses the authenticated, server-rendered Posts cluster on LinkedIn's all-results
+page. The dedicated content-results route currently returns false empty results,
+and the former Voyager blended-search endpoint is no longer available.
 
 ## Commands
 

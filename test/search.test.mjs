@@ -76,9 +76,9 @@ test('searchPosts normalizes server-rendered LinkedIn search results', async () 
 	assert.equal(result.out.items[0].url, postUrl);
 	assert.equal(result.out.items[0].text, 'Looking for a better CRM workflow for founder-led sales. #crm');
 	assert.equal(result.out.items[0].publishedAt, '2026-08-11T14:09:21.104Z');
-	assert.match(result.calls[0].url, /\/search\/results\/content\//);
+	assert.match(result.calls[0].url, /\/search\/results\/all\//);
 	assert.match(result.calls[0].url, /keywords=crm\+workflow/);
-	assert.match(result.calls[0].url, /sortBy=%22date_posted%22/);
+	assert.doesNotMatch(result.calls[0].url, /sortBy=/);
 	assert.equal(result.calls[0].init.headers.accept, 'text/html,application/xhtml+xml');
 });
 
